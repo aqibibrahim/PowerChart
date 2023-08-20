@@ -1,5 +1,9 @@
 This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
 
+## live App Url 
+app deployed on vercel here is the vercel link
+https://power-chart.vercel.app/
+
 ## Getting Started
 
 First, run the development server:
