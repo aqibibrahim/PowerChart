@@ -1,114 +1,92 @@
-'use client' // This is a client component
+"use client"; // This is a client component
 
-import React, { FC, useEffect, useState } from 'react'
-import axios from 'axios'
-import * as echarts from 'echarts'
-import 'echarts/theme/macarons'
+import React, { FC, useEffect, useState } from "react";
+import ReactECharts from "echarts-for-react";
+import { CustomSeriesRenderItem, EChartsOption } from "echarts";
+import * as echarts from "echarts/core";
+import { addMinutes, format } from "date-fns";
+import { colorMap, timeoptions } from "./chart.const";
+import { Data } from "./chart.interface";
+import { fetchData } from "./chart.utils";
 
-// Define color map based on sourceTag values
-const colorMap: Record<string, string> = {
-	Main: '#B798F5',
-	Solar: '#02E10C',
-	DG: '#403F3D',
-	Battery: '#FDE602',
-	'Solar+Battery': '#86B0FF',
-	'Battery+Solar': '#86B0FF',
-	'Main+Solar': '#7243D0',
-	'Main+Battery': '#32864B',
-	'Main+Solar+Battery': '#8BC486',
-	'DG+Battery': 'magentam',
-	'DG+Solar+Battery': 'cyan',
-	'DG+Battery+Solar': 'cyan',
-	Undetermined: '#BBE3FD',
-	'': 'white',
-}
+const CustomEChart: FC = () => {
+  const [chartData, setChartData] = useState<Data[]>([]);
+  const [loading, setLoading] = useState(true);
 
-const PowerSourceChart: FC = () => {
-	const [data, setData] = useState<any[]>([]) // Store received data from API
+  useEffect(() => {
+    setLoading(true);
+    fetchData()
+      .then(async ({ data }) => {
+        const chartData = data.map((item) => {
+          const date = new Date(item.minute_window);
+          const start = format(date.getTime(), "HH:mm");
+          const end = format(addMinutes(date.getTime(), 5), "HH:mm");
+          const dateString = format(date, "dd/LL/yyyy");
 
-	useEffect(() => {
-		// Fetch data from API
-		axios
-			.get(`${process.env.NEXT_PUBLIC_BASE_API_URL}`)
-			.then((response) => setData(response.data.data)) // Assuming the response is an array of data points
-			.catch((error) => console.error('Error fetching data:', error))
-	}, [])
+          return {
+            name: item.sourceTag,
+            date: dateString,
+            start,
+            end,
+            value: [dateString, start, end, dateString],
+            itemStyle: {
+              normal: {
+                color: colorMap[item.sourceTag],
+              },
+            },
+          };
+        });
 
-	useEffect(() => {
-		const chartDom = document.getElementById('chart') as HTMLDivElement
-		const myChart = echarts.init(chartDom, 'macarons')
+        return setChartData(chartData);
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
-		// Process data for chart rendering
+  console.log(loading);
 
-		const processedData = data.map((item) => {
-			const timestamp = new Date(item.minute_window).getTime()
-			const yValue = new Date(item.date).toLocaleDateString()
+  const renderItem: CustomSeriesRenderItem = (params: any, api) => {
+    var categoryIndex = api.ordinalRawValue(0);
+    var [x1, y1] = api.coord([api.ordinalRawValue(1), categoryIndex]);
+    var [x2, y2] = api.coord([api.ordinalRawValue(2), categoryIndex]);
+    var [_, height] = (api.size?.([0, 1]) as number[]) ?? [0, 0];
+    const heightFactor = 0.75;
 
-			return [timestamp, yValue, item.sourceTag]
-		})
+    var rectShape = echarts.graphic.clipRectByRect(
+      { x: x1, y: y1 - (height * heightFactor) / 2, width: x2 - x1, height: height * heightFactor },
+      { x: params.coordSys.x, y: params.coordSys.y, width: params.coordSys.width, height: params.coordSys.height }
+    );
 
-		// Sort data by timestamp
-		processedData.sort((a, b) => a[0] - b[0])
-		const option = {
-			tooltip: {
-				position: 'top',
-				formatter: ({ value: [date, time, source] }: any) =>
-					`Power Source: ${Object.keys(colorMap)[source]} ${time} ${date}`,
-			},
-			grid: {
-				left: 60,
-				right: 20,
-				top: 20,
-				bottom: 40,
-				containLabel: true,
-			},
-			xAxis: {
-				type: 'category',
-				data: [...new Set(processedData.map((item) => new Date(item[0]).toISOString().substr(11, 5)))],
-				splitLine: {
-					show: true,
-				},
-			},
-			yAxis: {
-				type: 'category',
-				data: [...new Set(processedData.map((item) => item[1]))],
-				splitLine: {
-					show: true,
-				},
-			},
-			visualMap: {
-				min: 0,
-				max: Object.keys(colorMap).length - 1,
-				calculable: true,
-				orient: 'horizontal',
-				left: 'center',
-				bottom: 10,
-				inRange: {
-					color: Object.values(colorMap),
-				},
-				textStyle: {
-					color: '#000',
-				},
-			},
-			series: [
-				{
-					name: 'Punch Card',
-					type: 'heatmap',
-					symbolSize: 15,
-					// data: dataChart,
-					data: processedData.map((item) => [
-						new Date(item[0]).toISOString().substr(11, 5),
-						item[1],
-						Object.keys(colorMap).indexOf(item[2]),
-					]),
-				},
-			],
-		}
+    if (rectShape) return { type: "rect", transition: ["shape"], shape: rectShape, style: api.style() };
 
-		myChart.setOption(option)
-	}, [data])
+    return undefined;
+  };
 
-	return <div id="chart" style={{ width: '100%', height: '600px' }} />
-}
+  const option: EChartsOption = {
+    tooltip: {
+      formatter: ({ marker, data: { name, start, end, date }, ...params }: any) =>
+        `${marker} ${name} : ${start} - ${date}`,
+    },
 
-export default PowerSourceChart
+    title: { text: "Power Source Chart", left: "center" },
+    xAxis: { scale: true, data: timeoptions, axisLabel: { formatter: (value: string) => value } },
+    yAxis: { type: "category", data: [...new Set(chartData.map((item) => item.date))], splitLine: { show: true } },
+    grid: { height: "500" },
+    dataZoom: [
+      { type: "slider", showDataShadow: false, bottom: 50, start: 0, end: 100 },
+      { type: "inside", start: 0, end: 100 },
+    ],
+    series: [
+      {
+        type: "custom",
+        renderItem: renderItem,
+        itemStyle: { opacity: 0.8 },
+        encode: { x: [1, 2], y: 0 },
+        data: chartData,
+      },
+    ],
+  };
+
+  return <ReactECharts style={{ height: "90vh", width: "100vw" }} showLoading={loading} option={option} />;
+};
+
+export default CustomEChart;

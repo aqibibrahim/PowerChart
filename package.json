@@ -14,10 +14,12 @@
     "@types/react-dom": "18.2.7",
     "autoprefixer": "10.4.15",
     "axios": "^1.4.0",
+    "date-fns": "^2.30.0",
     "echarts": "^5.4.3",
     "echarts-for-react": "^3.0.2",
     "eslint": "8.47.0",
     "eslint-config-next": "13.4.18",
+    "lodash": "^4.17.21",
     "next": "13.4.18",
     "postcss": "8.4.28",
     "react": "18.2.0",
@@ -25,5 +27,8 @@
     "react-echarts-ts": "^1.0.0-beta.0",
     "tailwindcss": "3.3.3",
     "typescript": "5.1.6"
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.14.198"
   }
 }
